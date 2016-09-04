@@ -1,0 +1,21 @@
+stream destroy --name couchbasetest
+
+module delete --name sink:couchbase
+
+module upload --type sink --name couchbase --file ./build/libs/couchbase-sink-1.0.jar
+
+stream create --name couchbasetest --definition "http | couchbase" --deploy
+
+stream create --name couchbasetap --definition "tap:stream:couchbasetest > log" --deploy
+
+stream destroy --name fetchgpevents
+
+stream create --name fetchgpevents --definition "jdbc --fixedDelay=3600 --driverClassName=org.postgresql.Driver --url=jdbc:postgresql://localhost:5432/cxpdev --username=gpadmin --query='select * from last_events' | log" --deploy
+
+stream create --name gpeventstap --definition "tap:stream:fetchgpevents > log" --deploy
+
+curl -vX POST http://localhost:9000 -d @documents/customer_event.json --header "Content-Type: application/json"
+
+stream create --name fetchgpevents --definition "jdbc --driverClassName=org.postgresql.Driver --url=jdbc:postgresql://localhost:5432/cxpdev --username=gpadmin --password=gpadmin --query='select * from t_last_events where read_flag=0' --update='update t_last_events set read_flag=1 where siebel_customer_number in (:siebel_customer_number)' | object-to-json | couchbase" --deploy
+
+stream create --name gpeventstap --definition "tap:stream:fetchgpevents > log" --deploy

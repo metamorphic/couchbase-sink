@@ -1,0 +1,1 @@
+update t_last_events set read_flag=0;
